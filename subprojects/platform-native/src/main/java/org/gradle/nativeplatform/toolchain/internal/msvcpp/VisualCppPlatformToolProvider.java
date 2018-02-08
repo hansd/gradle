@@ -27,6 +27,7 @@ import org.gradle.internal.work.WorkerLeaseService;
 import org.gradle.language.base.internal.compile.Compiler;
 import org.gradle.language.base.internal.compile.DefaultCompilerVersion;
 import org.gradle.language.base.internal.compile.VersionAwareCompiler;
+import org.gradle.nativeplatform.internal.BinaryToolSpec;
 import org.gradle.nativeplatform.internal.CompilerOutputFileNamingSchemeFactory;
 import org.gradle.nativeplatform.internal.LinkerSpec;
 import org.gradle.nativeplatform.internal.StaticLibraryArchiverSpec;
@@ -145,7 +146,7 @@ class VisualCppPlatformToolProvider extends AbstractPlatformToolProvider impleme
         return versionAwareCompiler(outputCleaningCompiler);
     }
 
-    private <T extends NativeCompileSpec> VersionAwareCompiler<T> versionAwareCompiler(OutputCleaningCompiler<T> outputCleaningCompiler) {
+    private <T extends BinaryToolSpec> VersionAwareCompiler<T> versionAwareCompiler(Compiler<T> outputCleaningCompiler) {
         return new VersionAwareCompiler<T>(outputCleaningCompiler, new DefaultCompilerVersion(VisualCppToolChain.DEFAULT_NAME, "Microsoft", visualCpp.getVersion()));
     }
 
@@ -176,7 +177,7 @@ class VisualCppPlatformToolProvider extends AbstractPlatformToolProvider impleme
     @Override
     protected Compiler<LinkerSpec> createLinker() {
         CommandLineToolInvocationWorker commandLineTool = tool("Linker", visualCpp.getLinker(targetPlatform));
-        return new LinkExeLinker(buildOperationExecutor, commandLineTool, context(commandLineToolConfigurations.get(ToolType.LINKER)), addLibraryPath(), workerLeaseService);
+        return versionAwareCompiler(new LinkExeLinker(buildOperationExecutor, commandLineTool, context(commandLineToolConfigurations.get(ToolType.LINKER)), addLibraryPath(), workerLeaseService));
     }
 
     @Override

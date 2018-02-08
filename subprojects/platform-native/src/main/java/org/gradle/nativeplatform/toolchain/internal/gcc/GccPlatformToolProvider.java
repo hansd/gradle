@@ -22,6 +22,7 @@ import org.gradle.internal.work.WorkerLeaseService;
 import org.gradle.language.base.internal.compile.Compiler;
 import org.gradle.language.base.internal.compile.DefaultCompilerVersion;
 import org.gradle.language.base.internal.compile.VersionAwareCompiler;
+import org.gradle.nativeplatform.internal.BinaryToolSpec;
 import org.gradle.nativeplatform.internal.CompilerOutputFileNamingSchemeFactory;
 import org.gradle.nativeplatform.internal.LinkerSpec;
 import org.gradle.nativeplatform.internal.StaticLibraryArchiverSpec;
@@ -32,7 +33,6 @@ import org.gradle.nativeplatform.toolchain.internal.CommandLineToolInvocationWor
 import org.gradle.nativeplatform.toolchain.internal.DefaultCommandLineToolInvocationWorker;
 import org.gradle.nativeplatform.toolchain.internal.DefaultMutableCommandLineToolContext;
 import org.gradle.nativeplatform.toolchain.internal.MutableCommandLineToolContext;
-import org.gradle.nativeplatform.toolchain.internal.NativeCompileSpec;
 import org.gradle.nativeplatform.toolchain.internal.OutputCleaningCompiler;
 import org.gradle.nativeplatform.toolchain.internal.Stripper;
 import org.gradle.nativeplatform.toolchain.internal.SymbolExtractor;
@@ -112,7 +112,7 @@ class GccPlatformToolProvider extends AbstractPlatformToolProvider implements Sy
         return versionAwareCompiler(outputCleaningCompiler, ToolType.CPP_COMPILER);
     }
 
-    private <T extends NativeCompileSpec> VersionAwareCompiler<T> versionAwareCompiler(Compiler<T> compiler, ToolType toolType) {
+    private <T extends BinaryToolSpec> VersionAwareCompiler<T> versionAwareCompiler(Compiler<T> compiler, ToolType toolType) {
         GccMetadata gccMetadata = getGccMetadata(toolType);
         return new VersionAwareCompiler<T>(compiler, new DefaultCompilerVersion(
             metadataProvider.getCompilerType().getIdentifier(),
@@ -180,7 +180,7 @@ class GccPlatformToolProvider extends AbstractPlatformToolProvider implements Sy
     @Override
     protected Compiler<LinkerSpec> createLinker() {
         GccCommandLineToolConfigurationInternal linkerTool = toolRegistry.getTool(ToolType.LINKER);
-        return new GccLinker(buildOperationExecutor, commandLineTool(linkerTool), context(linkerTool), useCommandFile, workerLeaseService);
+        return versionAwareCompiler(new GccLinker(buildOperationExecutor, commandLineTool(linkerTool), context(linkerTool), useCommandFile, workerLeaseService), ToolType.LINKER);
     }
 
     @Override
