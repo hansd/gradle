@@ -239,6 +239,42 @@ There are no longer tasks to generate Visual Studio solution files for each comp
 The deprecated property `StartParameter.taskOutputCacheEnabled` has been removed.
 Use `StartParameter.buildCacheEnabled` instead.
 
+### Changes to native compilation, linking and installation tasks
+
+To follow idiomatic Provider API practices, many tasks related to compiling and linking native libraries and applications have been converted to use the [Provider API](userguide/lazy_configuration.html).
+
+Tasks extending `org.gradle.nativeplatform.tasks.AbstractLinkTask`, which include `org.gradle.nativeplatform.tasks.LinkExecutable` and `org.gradle.nativeplatform.tasks.LinkSharedLibrary`.
+
+- `getDestinationDir()` was replaced by `getDestinationDirectory()`.
+- `getBinaryFile()`, `getOutputFile()` was replaced by `getLinkedFile()`.
+- `setOutputFile(File)` was removed. Use `Property.set()` instead.
+- `setOutputFile(Provider)` was removed. Use `Property.set()` instead.
+- `getTargetPlatform()` was changed to return a `Property`.
+- `setTargetPlatform(NativePlatform)` was removed. Use `Property.set()` instead.
+- `getToolChain()` was changed to return a `Property`.
+- `setToolChain(NativeToolChain)` was removed. Use `Property.set()` instead.
+
+Task type `org.gradle.nativeplatform.tasks.CreateStaticLibrary`
+
+- `getOutputFile()` was changed to return a `Property`.
+- `setOutputFile(File)` was removed. Use `Property.set()` instead.
+- `setOutputFile(Provider)` was removed. Use `Property.set()` instead.
+- `getTargetPlatform()` was changed to return a `Property`.
+- `setTargetPlatform(NativePlatform)` was removed. Use `Property.set()` instead.
+- `getToolChain()` was changed to return a `Property`.
+- `setToolChain(NativeToolChain)` was removed. Use `Property.set()` instead.
+- `getStaticLibArgs()` was changed to return a `ListProperty`.
+- `setStaticLibArgs(List)` was removed. Use `ListProperty.set()` instead.
+
+Task type `org.gradle.nativeplatform.tasks.InstallExecutable`
+
+- `getPlatform()` replaced by `getTargetPlatform()`.
+- `setTargetPlatform(NativePlatform)` was removed. Use `Property.set()` instead.
+- `getToolChain()` was changed to return a `Property`.
+- `setToolChain(NativeToolChain)` was removed. Use `Property.set()` instead.
+
+Task types `org.gradle.nativeplatform.tasks.StripSymbols`, `org.gradle.nativeplatform.tasks.ExtractSymbols`, `org.gradle.language.swift.tasks.SwiftCompile`, and `org.gradle.nativeplatform.tasks.LinkMachOBundle` were changed in similar ways.
+
 ### HttpClient library upgraded to version 4.5.5
 
 Gradle has been upgraded to embed [HttpClient version 4.5.5](https://archive.apache.org/dist/httpcomponents/httpclient/RELEASE_NOTES-4.5.x.txt) over 4.4.1.
