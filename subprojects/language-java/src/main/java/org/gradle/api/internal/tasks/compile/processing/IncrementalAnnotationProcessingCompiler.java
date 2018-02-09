@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-package org.gradle.api.internal.tasks.compile.incremental;
+package org.gradle.api.internal.tasks.compile.processing;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.gradle.api.internal.tasks.compile.JavaCompileSpec;
-import org.gradle.api.internal.tasks.compile.processing.AnnotationProcessorDeclaration;
-import org.gradle.api.internal.tasks.compile.processing.AnnotationProcessorDetector;
-import org.gradle.api.internal.tasks.compile.processing.IncrementalAnnotationProcessorType;
 import org.gradle.api.tasks.WorkResult;
 import org.gradle.language.base.internal.compile.Compiler;
 
@@ -33,12 +30,12 @@ import java.util.Set;
 /**
  * Sets up incremental annotation processing before delegating to the actual Java compiler.
  */
-class IncrementalAnnotationProcessingDecorator implements Compiler<JavaCompileSpec> {
+public class IncrementalAnnotationProcessingCompiler implements Compiler<JavaCompileSpec> {
 
     private final Compiler<JavaCompileSpec> delegate;
     private final AnnotationProcessorDetector annotationProcessorDetector;
 
-    IncrementalAnnotationProcessingDecorator(Compiler<JavaCompileSpec> delegate, AnnotationProcessorDetector annotationProcessorDetector) {
+    public IncrementalAnnotationProcessingCompiler(Compiler<JavaCompileSpec> delegate, AnnotationProcessorDetector annotationProcessorDetector) {
         this.delegate = delegate;
         this.annotationProcessorDetector = annotationProcessorDetector;
     }

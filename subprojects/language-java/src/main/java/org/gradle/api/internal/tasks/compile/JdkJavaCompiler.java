@@ -17,34 +17,26 @@ package org.gradle.api.internal.tasks.compile;
 
 import org.gradle.api.JavaVersion;
 import org.gradle.api.internal.tasks.compile.processing.AnnotationProcessorDeclaration;
+import org.gradle.api.internal.tasks.compile.processing.IncrementalAnnotationProcessingCompileTask;
 import org.gradle.api.internal.tasks.compile.reflect.SourcepathIgnoringProxy;
 import org.gradle.api.tasks.WorkResult;
 import org.gradle.api.tasks.WorkResults;
 import org.gradle.internal.Factory;
-import org.gradle.internal.concurrent.CompositeStoppable;
 import org.gradle.language.base.internal.compile.Compiler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.processing.Processor;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
-import java.io.File;
 import java.io.Serializable;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 public class JdkJavaCompiler implements Compiler<JavaCompileSpec>, Serializable {
     private static final Logger LOGGER = LoggerFactory.getLogger(JdkJavaCompiler.class);
     private final Factory<JavaCompiler> javaHomeBasedJavaCompilerFactory;
-    private volatile URLClassLoader processorClassloader;
 
     public JdkJavaCompiler(Factory<JavaCompiler> javaHomeBasedJavaCompilerFactory) {
         this.javaHomeBasedJavaCompilerFactory = javaHomeBasedJavaCompilerFactory;
@@ -55,16 +47,10 @@ public class JdkJavaCompiler implements Compiler<JavaCompileSpec>, Serializable 
         LOGGER.info("Compiling with JDK Java compiler API.");
 
         JavaCompiler.CompilationTask task = createCompileTask(spec);
-        boolean success;
-        try {
-            success = task.call();
-        } finally {
-            cleanup();
-        }
+        boolean success = task.call();
         if (!success) {
             throw new CompilationFailedException();
         }
-
         return WorkResults.didWork(true);
     }
 
@@ -82,43 +68,9 @@ public class JdkJavaCompiler implements Compiler<JavaCompileSpec>, Serializable 
 
         List<AnnotationProcessorDeclaration> annotationProcessors = spec.getEffectiveAnnotationProcessors();
         if (annotationProcessors != null) {
-            task.setProcessors(instantiateProcessors(annotationProcessors, spec.getAnnotationProcessorPath()));
+            task = new IncrementalAnnotationProcessingCompileTask(task, annotationProcessors, spec.getAnnotationProcessorPath());
         }
         return task;
-    }
-
-    private List<Processor> instantiateProcessors(List<AnnotationProcessorDeclaration> declaredProcessors, List<File> annotationProcessorPath) {
-        if (declaredProcessors == null) {
-            return Collections.emptyList();
-        }
-        processorClassloader = new URLClassLoader(getUrls(annotationProcessorPath));
-        List<Processor> processors = new ArrayList<Processor>(declaredProcessors.size());
-        for (AnnotationProcessorDeclaration declaredProcessor : declaredProcessors) {
-            try {
-                Class<?> processorClass = processorClassloader.loadClass(declaredProcessor.getClassName());
-                Object processor = processorClass.newInstance();
-                processors.add((Processor) processor);
-            } catch (Exception e) {
-                throw new IllegalArgumentException(e);
-            }
-        }
-        return processors;
-    }
-
-    private URL[] getUrls(List<File> classpath) {
-        URL[] urls = new URL[classpath.size()];
-        for (int i = 0; i < urls.length; i++) {
-            try {
-                urls[i] = classpath.get(i).toURI().toURL();
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return urls;
-    }
-
-    private void cleanup() {
-        CompositeStoppable.stoppable(processorClassloader).stop();
     }
 
     private static boolean emptySourcepathIn(List<String> options) {
