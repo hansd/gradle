@@ -63,4 +63,28 @@ cglib:cglib-nodep:3.2.5 -> cglib:cglib:3.2.5
 """
     }
 
+    def "fails resolution if 2 libraries provide the same capability"() {
+        buildFile << """
+            dependencies {
+               conf "cglib:cglib-nodep:3.2.5"
+               conf "cglib:cglib:3.2.5"
+            
+               constraints {
+                  capabilities {
+                     capability('cglib') {
+                        it.providedBy 'cglib:cglib'
+                        it.providedBy 'cglib:cglib-nodep'
+                     }
+                  }
+               }
+            }
+        """
+
+        when:
+        fails 'dependencyInsight', '--configuration', 'conf', '--dependency', 'cglib'
+
+        then:
+        failure.assertHasCause("Cannot choose between cglib:cglib-nodep or cglib:cglib because they provide the same capability: cglib")
+    }
+
 }

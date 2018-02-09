@@ -155,7 +155,7 @@ public class DependencyGraphBuilder {
         if (moduleRevision.isSelectable()) {
 
             if (tryCompatibleSelection(resolveState, moduleRevision, moduleId, version, module)) {
-                return;
+            //    return;
             }
 
             // A new module revision. Check for conflict

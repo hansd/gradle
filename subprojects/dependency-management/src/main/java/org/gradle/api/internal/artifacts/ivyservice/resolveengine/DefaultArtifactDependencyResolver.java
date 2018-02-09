@@ -15,14 +15,21 @@
  */
 package org.gradle.api.internal.artifacts.ivyservice.resolveengine;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.gradle.api.Action;
+import org.gradle.api.artifacts.ModuleIdentifier;
+import org.gradle.api.artifacts.dsl.CapabilitiesHandler;
 import org.gradle.api.internal.FeaturePreviews;
 import org.gradle.api.internal.artifacts.ArtifactDependencyResolver;
 import org.gradle.api.internal.artifacts.ComponentSelectorConverter;
+import org.gradle.api.internal.artifacts.DefaultModuleIdentifier;
 import org.gradle.api.internal.artifacts.GlobalDependencyResolutionRules;
 import org.gradle.api.internal.artifacts.ResolveContext;
 import org.gradle.api.internal.artifacts.configurations.ConflictResolution;
 import org.gradle.api.internal.artifacts.configurations.ResolutionStrategyInternal;
+import org.gradle.api.internal.artifacts.dsl.dependencies.DefaultDependencyConstraintHandler;
 import org.gradle.api.internal.artifacts.ivyservice.clientmodule.ClientModuleResolver;
 import org.gradle.api.internal.artifacts.ivyservice.dependencysubstitution.CachingDependencySubstitutionApplicator;
 import org.gradle.api.internal.artifacts.ivyservice.dependencysubstitution.DefaultDependencySubstitutionApplicator;
@@ -38,8 +45,11 @@ import org.gradle.api.internal.artifacts.ivyservice.resolveengine.excludes.Modul
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.CompositeDependencyGraphVisitor;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.DependencyGraphVisitor;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.builder.DependencyGraphBuilder;
+import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.conflicts.CandidateModule;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.conflicts.ConflictHandler;
+import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.conflicts.ConflictResolutionResult;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.conflicts.DefaultConflictHandler;
+import org.gradle.api.internal.artifacts.ivyservice.resolveengine.graph.conflicts.PotentialConflict;
 import org.gradle.api.internal.artifacts.repositories.ResolutionAwareRepository;
 import org.gradle.api.internal.artifacts.type.ArtifactTypeRegistry;
 import org.gradle.api.internal.attributes.AttributesSchemaInternal;
@@ -54,7 +64,11 @@ import org.gradle.internal.resolve.result.BuildableComponentResolveResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class DefaultArtifactDependencyResolver implements ArtifactDependencyResolver {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefaultArtifactDependencyResolver.class);
@@ -81,10 +95,11 @@ public class DefaultArtifactDependencyResolver implements ArtifactDependencyReso
     }
 
     @Override
-    public void resolve(ResolveContext resolveContext, List<? extends ResolutionAwareRepository> repositories, GlobalDependencyResolutionRules metadataHandler, Spec<? super DependencyMetadata> edgeFilter, DependencyGraphVisitor graphVisitor, DependencyArtifactsVisitor artifactsVisitor, AttributesSchemaInternal consumerSchema, ArtifactTypeRegistry artifactTypeRegistry) {
+    public void resolve(ResolveContext resolveContext, List<? extends ResolutionAwareRepository> repositories, GlobalDependencyResolutionRules metadataHandler, Spec<? super DependencyMetadata> edgeFilter, DependencyGraphVisitor graphVisitor, DependencyArtifactsVisitor artifactsVisitor, AttributesSchemaInternal consumerSchema, ArtifactTypeRegistry artifactTypeRegistry, CapabilitiesHandler capabilitiesHandler) {
         LOGGER.debug("Resolving {}", resolveContext);
+        ((DefaultDependencyConstraintHandler.CapabilitiesHandlerSpike) capabilitiesHandler).convertToReplacementRules();
         ComponentResolversChain resolvers = createResolvers(resolveContext, repositories, metadataHandler, artifactTypeRegistry);
-        DependencyGraphBuilder builder = createDependencyGraphBuilder(resolvers, resolveContext.getResolutionStrategy(), metadataHandler, edgeFilter, consumerSchema, moduleExclusions, buildOperationExecutor);
+        DependencyGraphBuilder builder = createDependencyGraphBuilder(resolvers, resolveContext.getResolutionStrategy(), metadataHandler, edgeFilter, consumerSchema, moduleExclusions, buildOperationExecutor, capabilitiesHandler);
 
         DependencyGraphVisitor artifactsGraphVisitor = new ResolvedArtifactsGraphVisitor(artifactsVisitor, resolvers.getArtifactSelector(), moduleExclusions);
 
@@ -92,13 +107,13 @@ public class DefaultArtifactDependencyResolver implements ArtifactDependencyReso
         builder.resolve(resolveContext, new CompositeDependencyGraphVisitor(graphVisitor, artifactsGraphVisitor));
     }
 
-    private DependencyGraphBuilder createDependencyGraphBuilder(ComponentResolversChain componentSource, ResolutionStrategyInternal resolutionStrategy, GlobalDependencyResolutionRules globalRules, Spec<? super DependencyMetadata> edgeFilter, AttributesSchemaInternal attributesSchema, ModuleExclusions moduleExclusions, BuildOperationExecutor buildOperationExecutor) {
+    private DependencyGraphBuilder createDependencyGraphBuilder(ComponentResolversChain componentSource, ResolutionStrategyInternal resolutionStrategy, GlobalDependencyResolutionRules globalRules, Spec<? super DependencyMetadata> edgeFilter, AttributesSchemaInternal attributesSchema, ModuleExclusions moduleExclusions, BuildOperationExecutor buildOperationExecutor, CapabilitiesHandler capabilitiesHandler) {
 
         DependencyToComponentIdResolver componentIdResolver = componentSource.getComponentIdResolver();
         ComponentMetaDataResolver componentMetaDataResolver = new ClientModuleResolver(componentSource.getComponentResolver(), dependencyDescriptorFactory);
 
         ResolveContextToComponentResolver requestResolver = createResolveContextConverter();
-        ConflictHandler conflictHandler = createConflictHandler(resolutionStrategy, globalRules);
+        ConflictHandler conflictHandler = createConflictHandler(resolutionStrategy, globalRules, capabilitiesHandler);
 
         DependencySubstitutionApplicator applicator =
             new CachingDependencySubstitutionApplicator(new DefaultDependencySubstitutionApplicator(resolutionStrategy.getDependencySubstitutionRule()));
@@ -121,7 +136,7 @@ public class DefaultArtifactDependencyResolver implements ArtifactDependencyReso
         return new DefaultResolveContextToComponentResolver();
     }
 
-    private ConflictHandler createConflictHandler(ResolutionStrategyInternal resolutionStrategy, GlobalDependencyResolutionRules metadataHandler) {
+    private ConflictHandler createConflictHandler(ResolutionStrategyInternal resolutionStrategy, GlobalDependencyResolutionRules metadataHandler, CapabilitiesHandler capabilitiesHandler) {
         ModuleConflictResolver conflictResolver = null;
         ConflictResolution conflictResolution = resolutionStrategy.getConflictResolution();
         switch (conflictResolution) {
@@ -136,13 +151,90 @@ public class DefaultArtifactDependencyResolver implements ArtifactDependencyReso
                 break;
         }
         conflictResolver = new VersionSelectionReasonResolver(conflictResolver);
-        return new DefaultConflictHandler(conflictResolver, metadataHandler.getModuleMetadataProcessor().getModuleReplacements());
+        DefaultConflictHandler conflictHandler = new DefaultConflictHandler(conflictResolver, metadataHandler.getModuleMetadataProcessor().getModuleReplacements());
+        return new SpikeCapabilityConflictHandler((DefaultDependencyConstraintHandler.CapabilitiesHandlerSpike) capabilitiesHandler, conflictHandler);
     }
 
     private static class DefaultResolveContextToComponentResolver implements ResolveContextToComponentResolver {
         @Override
         public void resolve(ResolveContext resolveContext, BuildableComponentResolveResult result) {
             result.resolved(resolveContext.toRootComponentMetaData());
+        }
+    }
+
+    private static class SpikeCapabilityConflictHandler implements ConflictHandler {
+        private final DefaultDependencyConstraintHandler.CapabilitiesHandlerSpike capabilitiesHandler;
+        private final ConflictHandler delegate;
+        private final Map<String, List<ModuleIdentifier>> capabilityToModules = Maps.newHashMap();
+
+        private SpikeCapabilityConflictHandler(DefaultDependencyConstraintHandler.CapabilitiesHandlerSpike capabilitiesHandler, ConflictHandler delegate) {
+            this.capabilitiesHandler = capabilitiesHandler;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public PotentialConflict registerModule(final CandidateModule newModule) {
+            PotentialConflict potentialConflict = delegate.registerModule(newModule);
+            Map<String, Set<String>> conflict = capabilitiesHandler.conflictingModules(newModule.getId().getGroup() + ":" + newModule.getId().getName());
+            if (!conflict.isEmpty()) {
+                for (Map.Entry<String, Set<String>> entry : conflict.entrySet()) {
+                    Set<String> value = entry.getValue();
+                    List<ModuleIdentifier> modules = Lists.newArrayList();
+                    for (String mid : value) {
+                        String[] parts = mid.split(":");
+                        modules.add(DefaultModuleIdentifier.newId(parts[0], parts[1]));
+                    }
+                    capabilityToModules.put(entry.getKey(), modules);
+                }
+                return new PotentialConflict() {
+                    @Override
+                    public void withParticipatingModules(Action<ModuleIdentifier> action) {
+                        action.execute(newModule.getId());
+                    }
+
+                    @Override
+                    public boolean conflictExists() {
+                        return true;
+                    }
+                };
+            }
+            return potentialConflict;
+        }
+
+        @Override
+        public boolean hasConflicts() {
+            return !capabilityToModules.isEmpty() || delegate.hasConflicts();
+        }
+
+        @Override
+        public void resolveNextConflict(Action<ConflictResolutionResult> resolutionAction) {
+            if (!capabilityToModules.isEmpty()) {
+                Iterator<Map.Entry<String, List<ModuleIdentifier>>> iterator = capabilityToModules.entrySet().iterator();
+                final Map.Entry<String, List<ModuleIdentifier>> entry = iterator.next();
+                iterator.remove();
+                resolutionAction.execute(new ConflictResolutionResult() {
+                    @Override
+                    public void withParticipatingModules(Action<ModuleIdentifier> action) {
+                    }
+
+                    @Override
+                    public <T extends ComponentResolutionState> T getSelected() {
+                        throw new RuntimeException("Cannot choose between " + Joiner.on(" or ").join(entry.getValue()) + " because they provide the same capability: " + entry.getKey());
+                    }
+
+                    @Override
+                    public Collection<? extends ComponentResolutionState> getCandidates() {
+                        return null;
+                    }
+                });
+            } else {
+                delegate.resolveNextConflict(resolutionAction);
+            }
+        }
+
+        @Override
+        public void registerResolver(ModuleConflictResolver conflictResolver) {
+            delegate.registerResolver(conflictResolver);
         }
     }
 

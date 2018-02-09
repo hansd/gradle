@@ -181,7 +181,7 @@ public class DependencyResolvingClasspath extends AbstractFileCollection {
             public ArtifactTypeContainer create() {
                 throw new UnsupportedOperationException();
             }
-        });
+        }, null);
         return result;
     }
 
