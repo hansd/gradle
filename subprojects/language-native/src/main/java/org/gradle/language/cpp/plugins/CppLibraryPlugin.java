@@ -21,7 +21,6 @@ import org.gradle.api.Incubating;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.internal.artifacts.publish.ArchivePublishArtifact;
 import org.gradle.api.internal.file.FileOperations;
@@ -80,7 +79,6 @@ public class CppLibraryPlugin implements Plugin<ProjectInternal> {
         project.getPluginManager().apply(CppBasePlugin.class);
 
         final TaskContainer tasks = project.getTasks();
-        final ConfigurationContainer configurations = project.getConfigurations();
         final ObjectFactory objectFactory = project.getObjects();
         final ProviderFactory providers = project.getProviders();
 
