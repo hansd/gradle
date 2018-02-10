@@ -91,8 +91,8 @@ public class CppBasePlugin implements Plugin<ProjectInternal> {
                 if (binary.isOptimized()) {
                     compile.setOptimized(true);
                 }
-                compile.setTargetPlatform(currentPlatform);
-                compile.setToolChain(toolChain);
+                compile.getTargetPlatform().set(currentPlatform);
+                compile.getToolChain().set(toolChain);
                 compile.getObjectFileDir().set(buildDirectory.dir("obj/" + names.getDirName()));
 
                 binary.getObjectsDir().set(compile.getObjectFileDir());
