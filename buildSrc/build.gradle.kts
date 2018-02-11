@@ -70,6 +70,10 @@ gradlePlugin {
             id = "config"
             implementationClass = "org.gradle.plugins.config.ConfigPlugin"
         }
+        "minifiedDependencies" {
+            id = "minifiedDependencies"
+            implementationClass = "org.gradle.plugins.MinifiedDependencies"
+        }
     }
 }
 

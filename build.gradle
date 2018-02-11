@@ -173,7 +173,9 @@ apply from: "gradle/taskCacheBuildScanUserData.gradle"
 apply from: "gradle/versioning.gradle"
 apply from: "gradle/dependencies.gradle"
 apply from: "gradle/dependenciesMetadataRules.gradle"
-apply from: "gradle/minifiedDependencies.gradle"
+apply {
+    plugin("minifiedDependencies")
+}
 apply from: "gradle/testDependencies.gradle"
 apply from: "gradle/wrapper.gradle"
 apply from: "gradle/idea.gradle"
